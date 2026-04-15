@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/((?!api/|assets/|instagram/|hero.jpg|favicon.png|loading.png|logo.png).*)", "destination": "/index.html" }
+  ]
+}

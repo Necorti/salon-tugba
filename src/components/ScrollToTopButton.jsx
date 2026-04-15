@@ -18,7 +18,7 @@ export default function ScrollToTopButton() {
     <button
       type="button"
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-      aria-label="SayfanÄ±n baÅŸÄ±na dÃ¶n"
+      aria-label="Sayfanin basina don"
       className={`fixed bottom-24 right-4 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full border border-gold/40 bg-black/82 text-gold shadow-lg backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:bg-black focus:outline-none focus:ring-2 focus:ring-gold/70 focus:ring-offset-2 focus:ring-offset-white sm:bottom-28 sm:right-5 md:bottom-28 md:right-6 ${
         visible
           ? "pointer-events-auto translate-y-0 opacity-100"

@@ -1,21 +1,20 @@
 import { useEffect, useState } from "react";
-import { siteContent } from "../data/siteContent";
 import useReveal from "../hooks/useReveal";
 
 const GRID_MEDIA_CLASS =
-  "h-60 w-full object-cover transition duration-500 group-hover:scale-[1.03] sm:h-72";
+  "h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]";
 
 const LIGHTBOX_MEDIA_CLASS =
-  "max-h-[85vh] max-w-full mx-auto rounded-[28px] bg-black object-contain block";
+  "mx-auto block max-h-[85vh] max-w-full rounded-[28px] bg-black object-contain";
 
-export default function Instagram() {
+export default function Instagram({ siteContent }) {
   const revealRef = useReveal();
   const [selectedItem, setSelectedItem] = useState(null);
   const [mediaErrors, setMediaErrors] = useState({});
   const [videoReady, setVideoReady] = useState({});
 
   useEffect(() => {
-    if (!selectedItem) return;
+    if (!selectedItem) return undefined;
 
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -33,11 +32,11 @@ export default function Instagram() {
   }, [selectedItem]);
 
   const markError = (src) => {
-    setMediaErrors((c) => ({ ...c, [src]: true }));
+    setMediaErrors((current) => ({ ...current, [src]: true }));
   };
 
   const markVideoReady = (src) => {
-    setVideoReady((c) => ({ ...c, [src]: true }));
+    setVideoReady((current) => ({ ...current, [src]: true }));
   };
 
   return (
@@ -48,23 +47,24 @@ export default function Instagram() {
     >
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto mb-12 max-w-2xl text-center">
-          <h2 className="text-3xl font-heading md:text-4xl">Instagram</h2>
-          <p className="mt-4 text-base text-white/70">
-            Güncel çalışmalarımızı ve salon atmosferimizi yakından inceleyin.
+          <h2 className="text-3xl font-heading md:text-4xl">
+            {siteContent.instagramTitle}
+          </h2>
+          <p className="mt-4 text-base leading-7 text-white/70">
+            {siteContent.instagramDescription}
           </p>
 
-<a 
-  href={siteContent.instagramUrl}
-  target="_blank" 
-  rel="noopener noreferrer"
-  className="inline-block mt-6 px-6 py-2 border border-white text-white rounded-full hover:bg-white hover:text-black transition"
->
-  Instagram’a Git
-</a>
+          <a
+            href={siteContent.instagramUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/16 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white hover:text-black"
+          >
+            Instagram&apos;a Git
+          </a>
         </div>
 
-        {/* ✅ mobile padding eklendi */}
-        <div className="grid gap-4 px-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {siteContent.galleryItems.map((item) => {
             const hasError = mediaErrors[item.src];
             const isReady = videoReady[item.src];
@@ -72,10 +72,10 @@ export default function Instagram() {
             return (
               <button
                 key={item.src}
+                type="button"
                 onClick={() => setSelectedItem(item)}
-                className="group relative overflow-hidden rounded-[28px] transform transition duration-300 hover:scale-[1.02]"
+                className="group relative aspect-[4/5] overflow-hidden rounded-[28px] border border-white/8 bg-white/5 text-left shadow-[0_18px_36px_rgba(0,0,0,0.18)] transition duration-300 hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-gold/70 focus:ring-offset-2 focus:ring-offset-primary"
               >
-                {/* IMAGE */}
                 {item.type === "image" && !hasError && (
                   <img
                     src={item.src}
@@ -86,16 +86,15 @@ export default function Instagram() {
                   />
                 )}
 
-                {/* VIDEO */}
                 {item.type === "video" && !hasError && (
                   <>
                     {!isReady && (
-                      <div className="absolute inset-0 bg-black/30 animate-pulse" />
+                      <div className="absolute inset-0 animate-pulse bg-black/30" />
                     )}
 
                     <video
                       src={item.src}
-                      className={`${GRID_MEDIA_CLASS} transition-opacity duration-500 ${
+                      className={`${GRID_MEDIA_CLASS} ${
                         isReady ? "opacity-100" : "opacity-0"
                       }`}
                       autoPlay
@@ -108,9 +107,8 @@ export default function Instagram() {
                   </>
                 )}
 
-                {/* ERROR */}
                 {hasError && (
-                  <div className="h-60 flex items-center justify-center bg-white/10 text-sm">
+                  <div className="flex h-full items-center justify-center bg-white/10 px-6 text-sm leading-6">
                     Medya yüklenemedi
                   </div>
                 )}
@@ -120,10 +118,9 @@ export default function Instagram() {
         </div>
       </div>
 
-      {/* LIGHTBOX */}
       {selectedItem && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/90 p-4 sm:items-center"
           onClick={() => setSelectedItem(null)}
         >
           <div
@@ -131,10 +128,11 @@ export default function Instagram() {
             onClick={(e) => e.stopPropagation()}
           >
             <button
+              type="button"
               onClick={() => setSelectedItem(null)}
-              className="absolute right-3 top-3 z-10 bg-black/60 px-3 py-1 text-white"
+              className="absolute right-3 top-3 z-10 inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-full border border-white/12 bg-black/72 px-4 text-sm font-medium text-white shadow-lg backdrop-blur"
             >
-              ✕
+              Kapat
             </button>
 
             {selectedItem.type === "video" ? (
@@ -145,9 +143,9 @@ export default function Instagram() {
                 className={LIGHTBOX_MEDIA_CLASS}
               />
             ) : (
-                <img
+              <img
                 src={selectedItem.src}
-                alt=""
+                alt={selectedItem.alt || siteContent.instagramTitle}
                 className={LIGHTBOX_MEDIA_CLASS}
               />
             )}
