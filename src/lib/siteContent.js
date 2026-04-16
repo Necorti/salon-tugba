@@ -30,8 +30,12 @@ export const DEFAULT_SITE_CONTENT_DOC = {
   heroImageAlt: "Salon Tuğba'da profesyonel saç uygulaması",
   trustText:
     "Salon Tuğba'da sizi aceleye gelmeyen bir ilgiyle karşılıyoruz. Hijyenik uygulama, dengeli sonuç ve yüzünüze gerçekten yakışan seçimler bizim için önemli. Buradan yalnızca bakımlı değil, içiniz rahat şekilde ayrılmanızı istiyoruz.",
+  contactDescription:
+    "Size en uygun işlemi ve randevu zamanını birlikte planlıyoruz.",
   footerText:
     "Denizli'de saç, renklendirme ve bakım uygulamalarında özenli, modern ve güven veren bir salon deneyimi için sizi bekliyoruz.",
+  footerSupportText:
+    "Size en uygun işlemi birlikte planlayalım.\nRandevu öncesinde bizimle iletişime geçebilirsiniz.\nKısaca beklentinizi iletmeniz yeterli.",
   ctaButtonText: "Hizmetleri İncele",
   bookingButtonText: "WhatsApp'tan Randevu Al",
   instagramTitle: "Instagram'da Çalışmalarımız",
@@ -139,6 +143,7 @@ function mergeWithDefaultCollection(items, fallback) {
     }))
     .filter((item) => asTrimmedString(item.title || item.src || item.alt));
 }
+
 export function sanitizePhone(phone) {
   return String(phone ?? "").replace(/\D/g, "");
 }
@@ -283,7 +288,15 @@ export function createAdminFormValues(firestoreData = {}) {
       firestoreData.trustText ?? firestoreData.trust?.text,
       defaults.trustText
     ),
+    contactDescription: asTrimmedString(
+      firestoreData.contactDescription,
+      defaults.contactDescription
+    ),
     footerText: asTrimmedString(firestoreData.footerText, defaults.footerText),
+    footerSupportText: asTrimmedString(
+      firestoreData.footerSupportText,
+      defaults.footerSupportText
+    ),
     ctaButtonText: asTrimmedString(
       firestoreData.ctaButtonText,
       defaults.ctaButtonText
@@ -353,7 +366,9 @@ export function sanitizeSiteContentPayload(formValues = {}) {
     heroImage: values.heroImage,
     heroImageAlt: values.heroImageAlt,
     trustText: values.trustText,
+    contactDescription: values.contactDescription,
     footerText: values.footerText,
+    footerSupportText: values.footerSupportText,
     ctaButtonText: values.ctaButtonText,
     bookingButtonText: values.bookingButtonText,
     instagramTitle: values.instagramTitle,

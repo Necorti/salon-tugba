@@ -1,7 +1,31 @@
 import crypto from "node:crypto";
 
 const SESSION_COOKIE_NAME = "salon_tugba_admin_session";
-const SESSION_MAX_AGE = 60 * 60 * 24 * 14;
+const SESSION_MAX_AGE = 60 * 60 * 2;
+
+function isProduction() {
+  return process.env.NODE_ENV === "production";
+}
+
+function buildCookieAttributes(maxAgeSeconds) {
+  const expiresAt =
+    maxAgeSeconds > 0
+      ? new Date(Date.now() + maxAgeSeconds * 1000)
+      : new Date(0);
+  const attributes = [
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${maxAgeSeconds}`,
+    `Expires=${expiresAt.toUTCString()}`,
+  ];
+
+  if (isProduction()) {
+    attributes.push("Secure");
+  }
+
+  return attributes.join("; ");
+}
 
 function getSecret() {
   const secret = process.env.ADMIN_SESSION_SECRET;
@@ -68,6 +92,41 @@ export function verifySessionToken(token) {
   }
 }
 
+export function getSessionStateFromToken(token) {
+  if (!token || !token.includes(".")) {
+    return { status: "missing", session: null };
+  }
+
+  const [encodedPayload, signature] = token.split(".");
+  const expectedSignature = sign(encodedPayload);
+  const signatureBuffer = Buffer.from(signature || "");
+  const expectedBuffer = Buffer.from(expectedSignature);
+
+  if (
+    !signature ||
+    signatureBuffer.length !== expectedBuffer.length ||
+    !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)
+  ) {
+    return { status: "invalid", session: null };
+  }
+
+  try {
+    const payload = decode(encodedPayload);
+
+    if (!payload?.username || !payload?.exp) {
+      return { status: "invalid", session: null };
+    }
+
+    if (payload.exp < Date.now()) {
+      return { status: "expired", session: null };
+    }
+
+    return { status: "authenticated", session: payload };
+  } catch {
+    return { status: "invalid", session: null };
+  }
+}
+
 export function readSessionFromRequest(req) {
   const cookieHeader = req.headers.cookie || "";
   const cookieValue = cookieHeader
@@ -83,21 +142,32 @@ export function readSessionFromRequest(req) {
   return verifySessionToken(token);
 }
 
-export function setSessionCookie(res, token) {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+export function getSessionStateFromRequest(req) {
+  const cookieHeader = req.headers.cookie || "";
+  const cookieValue = cookieHeader
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${SESSION_COOKIE_NAME}=`));
 
+  if (!cookieValue) {
+    return { status: "missing", session: null };
+  }
+
+  const [, token = ""] = cookieValue.split("=");
+  return getSessionStateFromToken(token);
+}
+
+export function setSessionCookie(res, token) {
   res.setHeader(
     "Set-Cookie",
-    `${SESSION_COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}${secure}`
+    `${SESSION_COOKIE_NAME}=${token}; ${buildCookieAttributes(SESSION_MAX_AGE)}`
   );
 }
 
 export function clearSessionCookie(res) {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-
   res.setHeader(
     "Set-Cookie",
-    `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`
+    `${SESSION_COOKIE_NAME}=; ${buildCookieAttributes(0)}`
   );
 }
 

@@ -22,11 +22,103 @@ const emptyServiceItem = {
   desc: "",
 };
 
+const REQUIRED_FIELDS = {
+  salonName: "Salon adı",
+  tagline: "Tagline / kısa açıklama",
+  phone1: "Telefon 1",
+  address: "Adres",
+  workingHours: "Çalışma saatleri",
+  whatsappNumber: "WhatsApp numarası",
+  heroHeadline: "Hero ana başlık",
+  heroSubheadline: "Hero alt açıklama",
+  ctaButtonText: "CTA buton metni",
+  bookingButtonText: "Rezervasyon buton metni",
+  seoTitle: "SEO title",
+  seoDescription: "SEO description",
+};
+
+const URL_FIELDS = {
+  instagramUrl: "Instagram linki",
+  logoUrl: "Logo URL",
+  googleMapsEmbedUrl: "Google Maps embed linki",
+  googleReviewsUrl: "Google yorum linki",
+  heroImage: "Hero görseli",
+};
+
 function serializeFormSnapshot(value) {
   return JSON.stringify(value);
 }
 
-function Field({ label, htmlFor, children, hint, description }) {
+function hasText(value) {
+  return String(value ?? "").trim().length > 0;
+}
+
+function isValidUrl(value) {
+  if (!hasText(value)) {
+    return true;
+  }
+
+  const normalizedValue = String(value).trim();
+
+  if (normalizedValue.startsWith("/")) {
+    return true;
+  }
+
+  try {
+    new URL(normalizedValue);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function validateAdminForm(form) {
+  const errors = {};
+  const warnings = {};
+
+  Object.entries(REQUIRED_FIELDS).forEach(([fieldName, label]) => {
+    if (!hasText(form?.[fieldName])) {
+      errors[fieldName] = `${label} boş bırakılamaz.`;
+    }
+  });
+
+  Object.entries(URL_FIELDS).forEach(([fieldName, label]) => {
+    if (!isValidUrl(form?.[fieldName])) {
+      errors[fieldName] = `${label} alanına geçerli bir URL girin.`;
+    }
+  });
+
+  form?.services?.forEach((service, index) => {
+    if (!hasText(service?.title)) {
+      errors[`services.${index}.title`] = `Hizmet ${index + 1} başlığı boş bırakılamaz.`;
+    }
+
+    if (!hasText(service?.desc)) {
+      errors[`services.${index}.desc`] = `Hizmet ${index + 1} açıklaması boş bırakılamaz.`;
+    }
+  });
+
+  form?.galleryItems?.forEach((item, index) => {
+    if (!hasText(item?.src)) {
+      errors[`galleryItems.${index}.src`] = `Galeri ${index + 1} için kaynak URL zorunludur.`;
+    } else if (!isValidUrl(item?.src)) {
+      errors[`galleryItems.${index}.src`] = `Galeri ${index + 1} kaynak URL alanına geçerli bir bağlantı girin.`;
+    }
+
+    if (!hasText(item?.alt)) {
+      warnings[`galleryItems.${index}.alt`] = `Galeri ${index + 1} alt metni boş. Erişilebilirlik için açıklama ekleyin.`;
+    }
+  });
+
+  return {
+    errors,
+    warnings,
+    errorMessages: Object.values(errors),
+    warningMessages: Object.values(warnings),
+  };
+}
+
+function Field({ label, htmlFor, children, hint, description, error, warning }) {
   return (
     <div className="grid gap-2.5">
       <div className="grid gap-1">
@@ -39,12 +131,24 @@ function Field({ label, htmlFor, children, hint, description }) {
       </div>
       {children}
       {hint ? <span className="text-xs leading-5 text-white/45">{hint}</span> : null}
+      {error ? (
+        <span className="text-xs leading-5 text-red-200">{error}</span>
+      ) : null}
+      {!error && warning ? (
+        <span className="text-xs leading-5 text-amber-200">{warning}</span>
+      ) : null}
     </div>
   );
 }
 
-function inputClassName() {
-  return "min-h-[48px] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/28 focus:border-gold focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60";
+function inputClassName({ invalid = false, warning = false } = {}) {
+  const stateClass = invalid
+    ? "border-red-400/60 bg-red-400/5 focus:border-red-300"
+    : warning
+      ? "border-amber-400/40 bg-amber-400/[0.03] focus:border-amber-300"
+      : "border-white/10 bg-white/5 focus:border-gold focus:bg-white/[0.07]";
+
+  return `min-h-[48px] rounded-2xl ${stateClass} px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/28 disabled:cursor-not-allowed disabled:opacity-60`;
 }
 
 function cardClassName() {
@@ -143,7 +247,11 @@ async function requestSession() {
     const { response, payload } = await requestAdmin("/api/admin/session");
 
     if (response.status === 401) {
-      return { session: null, shouldLogError: false };
+      return {
+        session: null,
+        shouldLogError: false,
+        message: payload?.message || "",
+      };
     }
 
     if (!response.ok) {
@@ -169,6 +277,7 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [validationVisible, setValidationVisible] = useState(false);
 
   useEffect(() => {
     document.title = "Salon Tugba Admin";
@@ -189,7 +298,8 @@ export default function Admin() {
     let active = true;
 
     async function bootstrapSession() {
-      const { session, shouldLogError, error } = await requestSession();
+      const { session, shouldLogError, error, message: sessionMessage } =
+        await requestSession();
 
       if (!active) {
         return;
@@ -198,9 +308,11 @@ export default function Admin() {
       if (session?.authenticated) {
         setAuthenticated(true);
         setUser(session.user ?? null);
+        setAuthMessage("");
       } else {
         setAuthenticated(false);
         setUser(null);
+        setAuthMessage(sessionMessage || "");
       }
 
       if (shouldLogError) {
@@ -379,6 +491,12 @@ export default function Admin() {
       return;
     }
 
+    setValidationVisible(true);
+    if (validation.errorMessages.length > 0) {
+      setMessage("");
+      return;
+    }
+
     setSaving(true);
     setMessage("");
 
@@ -395,6 +513,16 @@ export default function Admin() {
       );
 
       if (!response.ok) {
+        if (response.status === 401) {
+          setAuthenticated(false);
+          setUser(null);
+          setAuthMessage(
+            result?.message || "Oturum süresi doldu, lütfen tekrar giriş yapın."
+          );
+          setMessage("");
+          return;
+        }
+
         setMessage(
           buildApiErrorMessage(
             "Kayıt sırasında bir hata oluştu.",
@@ -421,6 +549,7 @@ export default function Admin() {
     () => serializeFormSnapshot(form) !== savedSnapshot,
     [form, savedSnapshot]
   );
+  const validation = useMemo(() => validateAdminForm(form), [form]);
   const statusTone = statusBannerTone(message);
   const statusSummary = useMemo(() => {
     if (saving) {
@@ -441,6 +570,8 @@ export default function Admin() {
 
     return "Tüm değişiklikler kaydedildi.";
   }, [saving, loading, message, isDirty]);
+  const visibleErrors = validationVisible ? validation.errors : {};
+  const visibleWarnings = validationVisible ? validation.warnings : {};
 
   if (sessionLoading) {
     return (
@@ -603,6 +734,38 @@ export default function Admin() {
           </div>
         </div>
 
+        {validationVisible && validation.errorMessages.length > 0 ? (
+          <div className="mb-6 rounded-[24px] border border-red-400/25 bg-red-400/10 px-5 py-4 text-sm text-red-100">
+            <div className="flex flex-col gap-2">
+              <strong className="font-semibold">
+                Kaydetmeden önce düzeltilmesi gereken alanlar var
+              </strong>
+              <ul className="grid gap-1 leading-6">
+                {validation.errorMessages.map((errorMessage, index) => (
+                  <li key={`${errorMessage}-${index}`}>{errorMessage}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
+
+        {validationVisible &&
+        validation.errorMessages.length === 0 &&
+        validation.warningMessages.length > 0 ? (
+          <div className="mb-6 rounded-[24px] border border-amber-400/25 bg-amber-400/10 px-5 py-4 text-sm text-amber-50">
+            <div className="flex flex-col gap-2">
+              <strong className="font-semibold">
+                Kaydetme devam etti, ama gözden geçirmenizi önerdiğimiz alanlar var
+              </strong>
+              <ul className="grid gap-1 leading-6">
+                {validation.warningMessages.map((warningMessage, index) => (
+                  <li key={`${warningMessage}-${index}`}>{warningMessage}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
+
         {message ? (
           <div className={bannerClassName(statusTone)}>
             <div className="flex flex-col gap-1">
@@ -638,6 +801,7 @@ export default function Admin() {
                   label="Salon adı"
                   htmlFor="salonName"
                   description="Sitede marka adı olarak görünen ana metin."
+                  error={visibleErrors.salonName}
                 >
                   <input
                     id="salonName"
@@ -646,7 +810,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("salonName", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.salonName),
+                    })}
                     placeholder="Örnek: Salon Tuğba"
                   />
                 </Field>
@@ -655,6 +821,7 @@ export default function Admin() {
                   label="Tagline / kısa açıklama"
                   htmlFor="tagline"
                   description="Markanın ilk hissini veren kısa açıklama."
+                  error={visibleErrors.tagline}
                 >
                   <input
                     id="tagline"
@@ -663,7 +830,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("tagline", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.tagline),
+                    })}
                     placeholder="Örnek: Denizli'de özenli ve güven veren salon deneyimi"
                   />
                 </Field>
@@ -672,6 +841,7 @@ export default function Admin() {
                   label="Logo URL"
                   htmlFor="logoUrl"
                   description="İsteğe bağlıdır. Boş kalırsa mevcut varsayılan logo kullanılır."
+                  error={visibleErrors.logoUrl}
                 >
                   <input
                     id="logoUrl"
@@ -680,7 +850,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("logoUrl", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.logoUrl),
+                    })}
                     placeholder="https://ornek.com/logo.png"
                   />
                 </Field>
@@ -717,6 +889,7 @@ export default function Admin() {
                   htmlFor="phone1"
                   description="Ana iletişim numarası."
                   hint="Boşluklu veya boşluksuz girebilirsiniz."
+                  error={visibleErrors.phone1}
                 >
                   <input
                     id="phone1"
@@ -725,7 +898,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("phone1", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.phone1),
+                    })}
                     placeholder="0555 123 45 67"
                   />
                 </Field>
@@ -751,6 +926,7 @@ export default function Admin() {
                   label="Adres"
                   htmlFor="address"
                   description="Salonun açık adresini net şekilde yazın."
+                  error={visibleErrors.address}
                 >
                   <textarea
                     id="address"
@@ -758,7 +934,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("address", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.address),
+                    })}
                     rows={4}
                     placeholder="Mahalle, cadde ve bina bilgisi"
                   />
@@ -768,6 +946,7 @@ export default function Admin() {
                   label="Çalışma saatleri"
                   htmlFor="workingHours"
                   description="Kapalı gün bilgisini de ekleyerek net saat aralığı verin."
+                  error={visibleErrors.workingHours}
                 >
                   <textarea
                     id="workingHours"
@@ -775,7 +954,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("workingHours", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.workingHours),
+                    })}
                     rows={4}
                     placeholder="Örnek: Salı hariç her gün 09:00 - 20:00"
                   />
@@ -786,6 +967,7 @@ export default function Admin() {
                   htmlFor="whatsappNumber"
                   description="Rezervasyon butonlarının kullanacağı numara."
                   hint="Ülke koduyla veya yerel formatla girebilirsiniz."
+                  error={visibleErrors.whatsappNumber}
                 >
                   <input
                     id="whatsappNumber"
@@ -794,7 +976,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("whatsappNumber", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.whatsappNumber),
+                    })}
                     placeholder="90555..."
                   />
                 </Field>
@@ -820,6 +1004,7 @@ export default function Admin() {
                   label="Google Maps embed linki"
                   htmlFor="googleMapsEmbedUrl"
                   description="İletişim bölümündeki harita için kullanılacak bağlantı."
+                  error={visibleErrors.googleMapsEmbedUrl}
                 >
                   <input
                     id="googleMapsEmbedUrl"
@@ -828,7 +1013,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("googleMapsEmbedUrl", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.googleMapsEmbedUrl),
+                    })}
                     placeholder="https://www.google.com/maps/embed?..."
                   />
                 </Field>
@@ -837,6 +1024,7 @@ export default function Admin() {
                   label="Google yorum linki"
                   htmlFor="googleReviewsUrl"
                   description="Yorumlar butonunun yönleneceği bağlantı."
+                  error={visibleErrors.googleReviewsUrl}
                 >
                   <input
                     id="googleReviewsUrl"
@@ -845,7 +1033,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("googleReviewsUrl", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.googleReviewsUrl),
+                    })}
                     placeholder="https://www.google.com/maps/place/..."
                   />
                 </Field>
@@ -881,6 +1071,7 @@ export default function Admin() {
                   label="Hero ana başlık"
                   htmlFor="heroHeadline"
                   description="Ana ekranda en büyük şekilde görünen mesaj."
+                  error={visibleErrors.heroHeadline}
                 >
                   <input
                     id="heroHeadline"
@@ -889,7 +1080,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("heroHeadline", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.heroHeadline),
+                    })}
                     placeholder="İlk bakışta net bir mesaj verin"
                   />
                 </Field>
@@ -898,6 +1091,7 @@ export default function Admin() {
                   label="Hero alt açıklama"
                   htmlFor="heroSubheadline"
                   description="Başlığı destekleyen kısa açıklama metni."
+                  error={visibleErrors.heroSubheadline}
                 >
                   <textarea
                     id="heroSubheadline"
@@ -905,7 +1099,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("heroSubheadline", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.heroSubheadline),
+                    })}
                     rows={4}
                     placeholder="Ziyaretçiye hizmet yaklaşımınızı birkaç cümleyle anlatın"
                   />
@@ -913,21 +1109,24 @@ export default function Admin() {
 
                 <div className="grid gap-5">
                   <Field
-                    label="Hero görseli"
-                    htmlFor="heroImage"
-                    description="Ana ekranda kullanılacak görsel bağlantısı."
-                  >
-                    <input
-                      id="heroImage"
+                  label="Hero görseli"
+                  htmlFor="heroImage"
+                  description="Ana ekranda kullanılacak görsel bağlantısı."
+                  error={visibleErrors.heroImage}
+                >
+                  <input
+                    id="heroImage"
                       type="url"
                       value={form.heroImage}
                       onChange={(event) =>
                         handleFieldChange("heroImage", event.target.value)
                       }
-                      className={inputClassName()}
-                      placeholder="https://ornek.com/hero.jpg"
-                    />
-                  </Field>
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.heroImage),
+                    })}
+                    placeholder="https://ornek.com/hero.jpg"
+                  />
+                </Field>
 
                   <Field
                     label="Hero görsel alt metni"
@@ -961,6 +1160,7 @@ export default function Admin() {
                   label="CTA buton metni"
                   htmlFor="ctaButtonText"
                   description="Hero içindeki ikinci butonda görünür."
+                  error={visibleErrors.ctaButtonText}
                 >
                   <input
                     id="ctaButtonText"
@@ -969,7 +1169,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("ctaButtonText", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.ctaButtonText),
+                    })}
                     placeholder="Örnek: Hizmetleri İncele"
                   />
                 </Field>
@@ -978,6 +1180,7 @@ export default function Admin() {
                   label="Rezervasyon buton metni"
                   htmlFor="bookingButtonText"
                   description="WhatsApp ve rezervasyon aksiyonlarında kullanılır."
+                  error={visibleErrors.bookingButtonText}
                 >
                   <input
                     id="bookingButtonText"
@@ -986,7 +1189,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("bookingButtonText", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.bookingButtonText),
+                    })}
                     placeholder="Örnek: WhatsApp'tan Randevu Al"
                   />
                 </Field>
@@ -1022,6 +1227,7 @@ export default function Admin() {
                   label="Instagram linki"
                   htmlFor="instagramUrl"
                   description="Profilinize yönlendiren bağlantı."
+                  error={visibleErrors.instagramUrl}
                 >
                   <input
                     id="instagramUrl"
@@ -1030,7 +1236,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("instagramUrl", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.instagramUrl),
+                    })}
                     placeholder="https://instagram.com/kullaniciadi"
                   />
                 </Field>
@@ -1084,6 +1292,7 @@ export default function Admin() {
                   htmlFor="seoTitle"
                   description="Tarayıcı sekmesinde ve arama sonuçlarında görünen başlık."
                   hint="Yaklaşık 50-60 karakter aralığı genelde daha dengeli görünür."
+                  error={visibleErrors.seoTitle}
                 >
                   <input
                     id="seoTitle"
@@ -1092,7 +1301,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("seoTitle", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.seoTitle),
+                    })}
                     placeholder="Örnek: Salon Tuğba | Denizli Kuaför"
                   />
                 </Field>
@@ -1102,6 +1313,7 @@ export default function Admin() {
                   htmlFor="seoDescription"
                   description="Arama sonuçlarında görünen kısa açıklama."
                   hint="Yaklaşık 140-160 karakter aralığı okunabilirliği artırır."
+                  error={visibleErrors.seoDescription}
                 >
                   <textarea
                     id="seoDescription"
@@ -1109,7 +1321,9 @@ export default function Admin() {
                     onChange={(event) =>
                       handleFieldChange("seoDescription", event.target.value)
                     }
-                    className={inputClassName()}
+                    className={inputClassName({
+                      invalid: Boolean(visibleErrors.seoDescription),
+                    })}
                     rows={4}
                     placeholder="Salonunuzu ve öne çıkan hizmetleri kısa şekilde anlatın"
                   />
@@ -1218,6 +1432,7 @@ export default function Admin() {
                       label={`Hizmet ${index + 1} başlık`}
                       htmlFor={`service-title-${index}`}
                       description="Kartta görünen hizmet adı."
+                      error={visibleErrors[`services.${index}.title`]}
                     >
                       <input
                         id={`service-title-${index}`}
@@ -1231,7 +1446,9 @@ export default function Admin() {
                             event.target.value
                           )
                         }
-                        className={inputClassName()}
+                        className={inputClassName({
+                          invalid: Boolean(visibleErrors[`services.${index}.title`]),
+                        })}
                         placeholder="Örnek: Saç Kesimi"
                       />
                     </Field>
@@ -1240,6 +1457,7 @@ export default function Admin() {
                       label="Açıklama"
                       htmlFor={`service-desc-${index}`}
                       description="Müşteriye bu hizmetin faydasını kısa şekilde anlatın."
+                      error={visibleErrors[`services.${index}.desc`]}
                     >
                       <textarea
                         id={`service-desc-${index}`}
@@ -1252,7 +1470,9 @@ export default function Admin() {
                             event.target.value
                           )
                         }
-                        className={inputClassName()}
+                        className={inputClassName({
+                          invalid: Boolean(visibleErrors[`services.${index}.desc`]),
+                        })}
                         rows={4}
                         placeholder="Bu hizmeti birkaç cümleyle açıklayın"
                       />
@@ -1343,6 +1563,7 @@ export default function Admin() {
                       label="Kaynak URL"
                       htmlFor={`gallery-src-${index}`}
                       description="Görsel veya videonun tam bağlantısı."
+                      error={visibleErrors[`galleryItems.${index}.src`]}
                     >
                       <input
                         id={`gallery-src-${index}`}
@@ -1356,7 +1577,9 @@ export default function Admin() {
                             event.target.value
                           )
                         }
-                        className={inputClassName()}
+                        className={inputClassName({
+                          invalid: Boolean(visibleErrors[`galleryItems.${index}.src`]),
+                        })}
                         placeholder="https://ornek.com/media.jpg"
                       />
                     </Field>
@@ -1365,6 +1588,7 @@ export default function Admin() {
                       label="Alt metin"
                       htmlFor={`gallery-alt-${index}`}
                       description="İçeriği kısa şekilde tanımlayan açıklama."
+                      warning={visibleWarnings[`galleryItems.${index}.alt`]}
                     >
                       <input
                         id={`gallery-alt-${index}`}
@@ -1378,7 +1602,9 @@ export default function Admin() {
                             event.target.value
                           )
                         }
-                        className={inputClassName()}
+                        className={inputClassName({
+                          warning: Boolean(visibleWarnings[`galleryItems.${index}.alt`]),
+                        })}
                         placeholder="Örnek: Saç boyama sonrası görünüm"
                       />
                     </Field>

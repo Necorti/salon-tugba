@@ -1,4 +1,7 @@
-import { readSessionFromRequest } from "../_lib/session.js";
+import {
+  clearSessionCookie,
+  getSessionStateFromRequest,
+} from "../_lib/session.js";
 
 export default function handler(req, res) {
   if (req.method !== "GET") {
@@ -7,9 +10,17 @@ export default function handler(req, res) {
   }
 
   try {
-    const session = readSessionFromRequest(req);
+    const { status, session } = getSessionStateFromRequest(req);
 
     if (!session) {
+      if (status === "expired") {
+        clearSessionCookie(res);
+        return res.status(401).json({
+          authenticated: false,
+          message: "Oturum süresi doldu, lütfen tekrar giriş yapın.",
+        });
+      }
+
       return res.status(401).json({ authenticated: false });
     }
 

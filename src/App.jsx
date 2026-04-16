@@ -15,6 +15,18 @@ import { normalizeSiteContent } from "./lib/siteContent";
 const MIN_LOADING_DURATION = 800;
 const SITE_URL = "https://salontugba.vercel.app/";
 
+function toAbsoluteUrl(value) {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    return new URL(value, SITE_URL).href;
+  } catch {
+    return SITE_URL;
+  }
+}
+
 function upsertMeta(selector, attributes) {
   let tag = document.head.querySelector(selector);
 
@@ -40,6 +52,19 @@ function upsertCanonical(href) {
   tag.setAttribute("href", href);
 }
 
+function upsertJsonLd(id, data) {
+  let tag = document.head.querySelector(`script[data-schema-id="${id}"]`);
+
+  if (!tag) {
+    tag = document.createElement("script");
+    tag.setAttribute("type", "application/ld+json");
+    tag.setAttribute("data-schema-id", id);
+    document.head.appendChild(tag);
+  }
+
+  tag.textContent = JSON.stringify(data);
+}
+
 function App() {
   const { data: siteContent, loading } = useSiteContent();
   const [minLoadingDone, setMinLoadingDone] = useState(false);
@@ -61,6 +86,23 @@ function App() {
   useEffect(() => {
     const nextTitle = safeSiteContent?.seoTitle || "Salon Tugba";
     const nextDescription = safeSiteContent?.seoDescription || "";
+    const nextImage = toAbsoluteUrl(safeSiteContent?.heroImage || "/hero.jpg");
+    const localBusinessSchema = {
+      "@context": "https://schema.org",
+      "@type": "BeautySalon",
+      name: safeSiteContent?.salonName || safeSiteContent?.name || "Salon Tugba",
+      image: nextImage,
+      url: SITE_URL,
+      telephone: safeSiteContent?.phone1 || undefined,
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: safeSiteContent?.address || undefined,
+        addressLocality: "Denizli",
+        addressCountry: "TR",
+      },
+      openingHours: safeSiteContent?.workingHours || undefined,
+      sameAs: [safeSiteContent?.instagramUrl].filter(Boolean),
+    };
 
     document.title = nextTitle;
     upsertMeta('meta[name="description"]', {
@@ -83,6 +125,22 @@ function App() {
       property: "og:url",
       content: SITE_URL,
     });
+    upsertMeta('meta[property="og:type"]', {
+      property: "og:type",
+      content: "website",
+    });
+    upsertMeta('meta[property="og:image"]', {
+      property: "og:image",
+      content: nextImage,
+    });
+    upsertMeta('meta[property="og:image:alt"]', {
+      property: "og:image:alt",
+      content: safeSiteContent?.heroImageAlt || "Salon Tugba hero gorseli",
+    });
+    upsertMeta('meta[name="twitter:card"]', {
+      name: "twitter:card",
+      content: "summary_large_image",
+    });
     upsertMeta('meta[name="twitter:title"]', {
       name: "twitter:title",
       content: nextTitle,
@@ -95,7 +153,16 @@ function App() {
       name: "twitter:url",
       content: SITE_URL,
     });
+    upsertMeta('meta[name="twitter:image"]', {
+      name: "twitter:image",
+      content: nextImage,
+    });
+    upsertMeta('meta[name="twitter:image:alt"]', {
+      name: "twitter:image:alt",
+      content: safeSiteContent?.heroImageAlt || "Salon Tugba hero gorseli",
+    });
     upsertCanonical(SITE_URL);
+    upsertJsonLd("local-business", localBusinessSchema);
   }, [safeSiteContent]);
 
   if (loading || !minLoadingDone) {
@@ -113,7 +180,7 @@ function App() {
   return (
     <div className="animate-fadeIn">
       <Navbar siteContent={safeSiteContent} />
-      <main>
+      <main id="main-content">
         <Hero siteContent={safeSiteContent} />
         <Services siteContent={safeSiteContent} />
         <Instagram siteContent={safeSiteContent} />

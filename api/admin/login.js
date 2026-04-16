@@ -3,6 +3,14 @@ import {
   setSessionCookie,
   verifyCredentials,
 } from "../_lib/session.js";
+import {
+  clearFailedLoginAttempts,
+  getLoginRateLimitState,
+  registerFailedLogin,
+} from "../_lib/login-rate-limit.js";
+
+const RATE_LIMIT_MESSAGE =
+  "Çok fazla başarısız giriş denemesi. Lütfen biraz sonra tekrar deneyin.";
 
 async function readJsonBody(req) {
   if (req.body && typeof req.body === "object") {
@@ -28,14 +36,29 @@ export default function handler(req, res) {
     return res.status(405).json({ message: "Method not allowed." });
   }
 
+  const rateLimitState = getLoginRateLimitState(req);
+
+  if (rateLimitState.blocked) {
+    res.setHeader("Retry-After", String(rateLimitState.retryAfterSeconds));
+    return res.status(429).json({ message: RATE_LIMIT_MESSAGE });
+  }
+
   return Promise.resolve(readJsonBody(req))
     .then(({ username, password } = {}) => {
       if (!verifyCredentials(username, password)) {
+        const failedAttempt = registerFailedLogin(req);
+
+        if (failedAttempt.blocked) {
+          res.setHeader("Retry-After", String(failedAttempt.retryAfterSeconds));
+          return res.status(429).json({ message: RATE_LIMIT_MESSAGE });
+        }
+
         return res
           .status(401)
           .json({ message: "Kullanıcı adı veya şifre hatalı." });
       }
 
+      clearFailedLoginAttempts(req);
       const token = createSessionToken(username);
       setSessionCookie(res, token);
 
