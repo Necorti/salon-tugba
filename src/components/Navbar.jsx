@@ -28,15 +28,6 @@ export default function Navbar({ siteContent }) {
   }, []);
 
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const previousTouchAction = document.body.style.touchAction;
-
-    document.body.classList.toggle("menu-open", mobileMenuOpen);
-    document.body.style.overflow = mobileMenuOpen ? "hidden" : previousOverflow;
-    document.body.style.touchAction = mobileMenuOpen
-      ? "none"
-      : previousTouchAction;
-
     const closeOnEscape = (event) => {
       if (event.key === "Escape") {
         setMobileMenuOpen(false);
@@ -46,10 +37,19 @@ export default function Navbar({ siteContent }) {
     window.addEventListener("keydown", closeOnEscape);
 
     return () => {
-      document.body.classList.remove("menu-open");
-      document.body.style.overflow = previousOverflow;
-      document.body.style.touchAction = previousTouchAction;
       window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
     };
   }, [mobileMenuOpen]);
 
@@ -135,59 +135,50 @@ export default function Navbar({ siteContent }) {
       </div>
 
       {mobileMenuOpen && (
-        <>
-          <button
-            type="button"
-            aria-label="Menüyü kapat"
-            className="fixed inset-0 z-[60] bg-black/88 backdrop-blur-xl md:hidden"
-            onClick={closeMobileMenu}
-          />
-
+        <div className="mt-2 w-full px-4 pb-4 pt-2 md:hidden">
           <div
             id="mobile-menu"
-            className="fixed inset-0 z-[80] overflow-y-auto px-4 pb-5 pt-6 md:hidden"
+            className="w-full rounded-2xl border border-white/10 bg-black/95 p-5 shadow-lg"
           >
-            <div className="min-h-full rounded-[30px] border border-white/10 bg-[#080808]/98 p-5 shadow-[0_24px_60px_rgba(0,0,0,0.42)] backdrop-blur-2xl">
-              <div className="mb-6 border-b border-white/8 pb-4">
-                <p className="text-[11px] uppercase tracking-[0.22em] text-gold">
-                  Hızlı Erişim
-                </p>
-                <p className="mt-2 max-w-xs text-sm leading-6 text-white/58">
-                  Tek bir adım seçin ve devam edin.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                {navLinks.map((link) => (
-                  <a
-                    key={link.href}
-                    href={link.href}
-                    onClick={closeMobileMenu}
-                    className="flex min-h-[58px] items-center rounded-2xl border border-white/8 bg-white/[0.04] px-4 text-left text-base font-medium tracking-[0.05em] text-white transition-all duration-200 hover:border-white/10 hover:bg-white/6 hover:text-gold"
-                  >
-                    {link.label}
-                  </a>
-                ))}
-              </div>
-
-              <a
-                href={siteContent.whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={closeMobileMenu}
-                className="mt-7 inline-flex min-h-[54px] w-full items-center justify-center rounded-full bg-gold px-5 py-3 text-sm font-semibold text-black transition-all duration-200 hover:bg-[#d5b57a] hover:shadow-[0_12px_28px_rgba(200,169,106,0.28)] active:scale-95"
-              >
-                {siteContent.bookingButtonText}
-              </a>
-
-              {siteContent.specialNotice ? (
-                <p className="mt-4 rounded-3xl border border-gold/20 bg-gold/10 px-4 py-3 text-sm leading-6 text-white/80">
-                  {siteContent.specialNotice}
-                </p>
-              ) : null}
+            <div className="mb-5 border-b border-white/8 pb-4">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-gold">
+                Hızlı Erişim
+              </p>
+              <p className="mt-2 max-w-xs text-sm leading-6 text-white/58">
+                Tek bir adım seçin ve devam edin.
+              </p>
             </div>
+
+            <div className="flex flex-col gap-3">
+              {navLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={closeMobileMenu}
+                  className="flex min-h-[56px] items-center rounded-2xl border border-white/8 bg-white/[0.04] px-4 text-left text-base font-medium tracking-[0.05em] text-white transition-all duration-200 hover:border-white/10 hover:bg-white/5 hover:text-gold"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+
+            <a
+              href={siteContent.whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={closeMobileMenu}
+              className="mt-6 inline-flex min-h-[54px] w-full items-center justify-center rounded-full bg-gold px-5 py-3 text-sm font-semibold text-black transition-all duration-200 hover:bg-[#d5b57a] hover:shadow-[0_12px_28px_rgba(200,169,106,0.28)] active:scale-95"
+            >
+              {siteContent.bookingButtonText}
+            </a>
+
+            {siteContent.specialNotice ? (
+              <p className="mt-4 rounded-3xl border border-gold/20 bg-gold/10 px-4 py-3 text-sm leading-6 text-white/80">
+                {siteContent.specialNotice}
+              </p>
+            ) : null}
           </div>
-        </>
+        </div>
       )}
     </nav>
   );
