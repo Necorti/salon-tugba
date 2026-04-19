@@ -290,7 +290,7 @@ export default function Admin() {
     }
 
     if (canonicalTag) {
-      canonicalTag.setAttribute("href", "https://salontugba.vercel.app/admin");
+      canonicalTag.setAttribute("href", "https://www.salontugba.com/admin");
     }
   }, []);
 
